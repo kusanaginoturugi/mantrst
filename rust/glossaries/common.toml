@@ -1,0 +1,4 @@
+[terms]
+"API" = { translation = "API", keep_english = true }
+"CLI" = { translation = "CLI", keep_english = true }
+"EDID" = { translation = "EDID", keep_english = true }

@@ -1,0 +1,5 @@
+[terms]
+"display" = { translation = "ディスプレイ" }
+"feature code" = { translation = "機能コード", keep_english = true }
+"standard output" = { translation = "標準出力" }
+"standard error" = { translation = "標準エラー出力" }

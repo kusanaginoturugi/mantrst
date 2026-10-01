@@ -1,0 +1,118 @@
+.TH MANTRST 1 "2026-09-28" "mantrst 0.1.0" "General Commands Manual"
+.SH NAME
+mantrst \- translate local manual pages with an OpenAI-compatible LLM
+.SH SYNOPSIS
+.nf
+mantrst [options] page
+.fi
+.SH DESCRIPTION
+\fBmantrst\fP finds a local manual page, translates its prose through an OpenAI-compatible
+LLM endpoint, and displays the result in a pager.
+The original manual page is never modified.
+.PP
+Translated pages and individual translated paragraphs are cached.
+When a page must be rebuilt, previously translated paragraphs are reused unless
+\fB--refresh\fP is specified.
+Uncached prose is batched to fit the local model context for llama.cpp. Gemini
+uses one paragraph per request. Results remain cached per paragraph. Each
+request is reported on standard error. A request that does not connect or
+respond within 60 seconds fails with an error.
+Gemini HTTP 429 and 503 responses are retried up to three times with an
+exponential backoff.
+.SH OPTIONS
+.TP
+.B -s, --section SECTION
+Read the manual page from SECTION.
+.TP
+.B --lang LANG
+Set the target language. The default is \fBja-JP\fP.
+.TP
+.B --model MODEL
+Set the model name sent to the LLM endpoint. Defaults depend on
+\fB--provider\fP.
+.TP
+.B --provider PROVIDER
+Select \fBllamacpp\fP (the default) or \fBgemini\fP. The \fBgemini\fP
+provider uses Google AI Studio's OpenAI-compatible endpoint and reads
+\fBGEMINI_API_KEY\fP.
+.TP
+.B --url URL
+Set the OpenAI-compatible chat-completions endpoint.
+.TP
+.B --api-key API_KEY
+Set the API key sent as a Bearer token to the LLM endpoint. It overrides
+\fBGEMINI_API_KEY\fP when the Gemini provider is selected.
+.TP
+.B --refresh
+Ignore both the page cache and the paragraph cache, then translate everything again.
+.TP
+.B --rebuild
+Ignore only the page cache and rebuild the page from the paragraph cache.
+This option conflicts with
+\fB--refresh\fP.
+.TP
+.B --source
+Write undecorated translated text to standard output and do not start a pager.
+.TP
+.B --original
+Run the system man command for PAGE without translating it.
+.TP
+.B --theme THEME
+Select terminal colors: \fBauto\fP, \fBlight\fP, or \fBdark\fP.
+The default is \fBauto\fP.
+.SH ENVIRONMENT
+.TP
+.B MANTRST_MODEL
+Default value for
+\fB--model\fP.
+.TP
+.B MANTRST_LLM_URL
+Default value for
+\fB--url\fP.
+.TP
+.B GEMINI_API_KEY
+API key used by \fB--provider gemini\fP, unless \fB--api-key\fP is supplied.
+.TP
+.B MANTRST_THEME
+Default value for
+\fB--theme\fP.
+.TP
+.B COLORFGBG
+When the theme is
+\fBauto\fP,
+this value is used to choose a light or dark color palette when available.
+.TP
+.B MANPAGER
+Pager command used for normal terminal output. If unset,
+the value of PAGER is used; otherwise the pager command less -R is used.
+.SH FILES
+.TP
+.I ~/.cache/mantrst/
+Page and paragraph translation caches.
+.TP
+.I ~/.config/mantrst/glossaries/
+User glossary overlays. Files named
+\fIcommon.toml\fP, \fIja.toml\fP, and \fIja-JP.toml\fP
+are loaded in that order.
+.SH EXAMPLES
+.TP
+.B mantrst ddcutil
+Translate and display the ddcutil manual page.
+.TP
+.B mantrst --rebuild ddcutil
+Rebuild the display from cached translated paragraphs.
+.TP
+.B MANTRST_THEME=dark mantrst ddcutil
+Use the dark terminal theme.
+.TP
+.B GEMINI_API_KEY=... mantrst --provider gemini ddcutil
+Translate with Google AI Studio's hosted Gemma 4 model.
+.TP
+.B mantrst --original ddcutil
+Display the original manual page.
+.SH SEE ALSO
+\fBman\fP(1), \fBless\fP(1)
+.PP
+Project source and issue tracker:
+.UR https://github.com/onoue/mantrst
+.UE
