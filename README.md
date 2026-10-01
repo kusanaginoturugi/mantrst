@@ -1,18 +1,20 @@
 # mantrst
 
-`mantrst` はローカルに入っている man ページを、OpenAI互換のLLMで翻訳して表示するRust製CLI。llama.cppルータと Google AI Studio の Gemma に対応する。
-元の man ファイルは変更しない。翻訳結果はキャッシュへ保存する。
+English | [日本語](README.ja.md)
 
-## 動かし方
+`mantrst` is a Rust CLI that translates locally installed man pages with an OpenAI-compatible LLM and displays the result. It supports a llama.cpp router and Gemma on Google AI Studio.
+The original man files are never modified. Translations are stored in a cache.
 
-`llama-server` のルータを起動する。既定ではルータ内の `translategemma-4b` を選ぶ。
+## Usage
+
+Start the `llama-server` router. By default, `translategemma-4b` is selected from the router.
 
 ```sh
 cargo build --release
 ./target/release/mantrst ddcutil
 ```
 
-PATH に入れるなら、リポジトリ直下でこれだけでいい。
+To put it on your PATH, run this from the repository root:
 
 ```sh
 cargo install --path .
@@ -28,69 +30,69 @@ MANPATH="$PWD/man" man mantrst
 MANPATH="$PWD/man" mantrst mantrst
 ```
 
-既定プロバイダは llama.cpp。既定の接続先は `http://127.0.0.1:8080/v1/chat/completions`、既定モデル名は `translategemma-4b`。
-環境変数で変更できる。
+The default provider is llama.cpp. The default endpoint is `http://127.0.0.1:8080/v1/chat/completions` and the default model name is `translategemma-4b`.
+Both can be changed with environment variables.
 
 ```sh
 MANTRST_MODEL=my-local-model mantrst --lang ja-JP ddcutil
 MANTRST_LLM_URL=http://localhost:8080/v1/chat/completions mantrst ddcutil
 ```
 
-現在は OpenAI互換の Chat Completions API を使う。API が利用できない場合は、エラーにして原文を勝手に「翻訳済み」として表示しない。
-キャッシュがないときは、LLM への要求を始める前に使用モデル名を含む進捗（例: `mantrst: 翻訳中… (translategemma-4b)`）を標準エラーへ表示する。各リクエストも番号付きで表示し、接続または応答が60秒を超えるとエラーにする。
+It currently uses the OpenAI-compatible Chat Completions API. If the API is unavailable, it fails with an error instead of showing the original text as if it were "translated".
+When there is no cache, it prints a progress message including the model name (e.g. `mantrst: 翻訳中… (translategemma-4b)`) to stderr before sending requests to the LLM. Each request is also numbered, and a connection or response taking longer than 60 seconds is treated as an error.
 
-未キャッシュの翻訳対象は、プロバイダに応じて送る。llama.cpp はコンテキストに収まる最大サイズ（推定入力1,600トークン）でまとめ、Google AI Studio の Gemini は段落単位の通常テキスト要求を使う。いずれも応答を段落ごとにキャッシュするため、中断後は完了済み段落を再利用できる。
-Gemini が一時的な高負荷（HTTP 429 / 503）を返した場合は、1秒、2秒と待って最大3回まで自動再試行する。
-段落ごとの翻訳もキャッシュするので、途中で中断した長いページは次回実行時に続きから処理する。キャッシュは接続先 URL とモデルごとに分かれる。
+Uncached text is sent according to the provider. For llama.cpp, it is batched into the largest chunk that fits in the context (an estimated 1,600 input tokens); for Gemini on Google AI Studio, plain-text requests are sent per paragraph. In both cases responses are cached per paragraph, so completed paragraphs are reused after an interruption.
+If Gemini returns a temporary overload (HTTP 429 / 503), it retries automatically up to 3 times, waiting 1 second, then 2 seconds.
+Because per-paragraph translations are cached, a long page that was interrupted resumes where it left off on the next run. The cache is separated per endpoint URL and model.
 
 ```sh
-mantrst --lang ja-JP ddcutil      # 翻訳して表示
-mantrst --source ddcutil          # 翻訳済みテキストを標準出力へ
-mantrst --rebuild ddcutil         # ページ全体だけを段落キャッシュから再構築
-mantrst --refresh ddcutil         # 段落を含む全キャッシュを無視して作り直す
-mantrst --original ddcutil        # 通常の man をそのまま起動
-mantrst -s 1 printf               # man セクション指定
+mantrst --lang ja-JP ddcutil      # translate and display
+mantrst --source ddcutil          # write translated text to stdout
+mantrst --rebuild ddcutil         # rebuild only the whole page from the paragraph cache
+mantrst --refresh ddcutil         # ignore all caches, including paragraphs, and redo
+mantrst --original ddcutil        # run plain man as is
+mantrst -s 1 printf               # specify a man section
 ```
 
-## Google AI Studio の Gemma 4
+## Gemma 4 on Google AI Studio
 
-Google AI Studio で API キーを作成し、シェルにだけ設定する。キーを設定ファイルやリポジトリへ保存する必要はない。
+Create an API key in Google AI Studio and set it only in your shell. There is no need to store the key in a config file or the repository.
 
 ```sh
-export GEMINI_API_KEY='AI Studio で作成したキー'
+export GEMINI_API_KEY='key created in AI Studio'
 mantrst --provider gemini ddcutil
 ```
 
-`--provider gemini` は Google の OpenAI 互換エンドポイント、`gemma-4-26b-a4b-it`、および `GEMINI_API_KEY` を使う。より大きいモデルを使う場合は `--model gemma-4-31b-it` を指定する。キーは Gemini を選んだときだけ Bearer 認証として送るので、llama.cpp に戻すときにローカルサーバーへ渡らない。
+`--provider gemini` uses Google's OpenAI-compatible endpoint, `gemma-4-26b-a4b-it`, and `GEMINI_API_KEY`. For a larger model, pass `--model gemma-4-31b-it`. The key is sent as Bearer authentication only when Gemini is selected, so it never reaches your local server when you switch back to llama.cpp.
 
-通常表示では、端末に直接出している場合だけ `MANPAGER`、`PAGER`、`less -R` の順に pager を起動する。パイプした場合と `--source` では pager を使わない。
-端末表示は、manのヘッダーと色付き見出し・コマンド名を付けた軽い `glow` 風テーマになる。`--source` は装飾なしのテキストを出力する。
-テーマは既定で `COLORFGBG` を見て自動選択する。判定できない端末ではライトテーマになる。明示する場合は `--theme light` / `--theme dark`、または `MANTRST_THEME=light` / `dark` を使う。
+In normal display mode, a pager is started only when writing directly to a terminal, trying `MANPAGER`, `PAGER`, then `less -R`. No pager is used when piping or with `--source`.
+Terminal output uses a light `glow`-like theme with a man header and colored headings and command names. `--source` outputs undecorated text.
+The theme is chosen automatically from `COLORFGBG` by default, falling back to the light theme when it cannot be detected. To set it explicitly, use `--theme light` / `--theme dark` or `MANTRST_THEME=light` / `dark`.
 
 ```sh
-PAGER=cat mantrst ddcutil         # pager を使わず表示
-mantrst ddcutil | less -R         # 明示的に pager へ渡す
+PAGER=cat mantrst ddcutil         # display without a pager
+mantrst ddcutil | less -R         # pipe to a pager explicitly
 ```
 
-## 辞書
+## Glossaries
 
-辞書は `rust/glossaries/` に置く TOML。読み込み順は次の通り。
+Glossaries are TOML files in `rust/glossaries/`. They are loaded in this order:
 
 ```text
 common.toml → ja.toml → ja-JP.toml
 ```
 
-ユーザー辞書は `~/.config/mantrst/glossaries/` に同じファイル名で置くと、同名エントリを上書きできる。
+Placing a file with the same name in `~/.config/mantrst/glossaries/` overrides entries with the same key.
 
-## 安全性と対象範囲
+## Safety and scope
 
-- `.SH` / `.SS` の見出しと通常の説明段落だけを翻訳する。
-- roff マクロ、オプションらしい行、表、コード例は維持する。
-- LLM へ渡す roff エスケープはトークンに退避して復元する。
-- man ページの内容はデータであり、LLMへの命令ではないと明示する。
+- Only `.SH` / `.SS` headings and regular description paragraphs are translated.
+- roff macros, option-like lines, tables, and code examples are preserved.
+- roff escapes are replaced with tokens before being sent to the LLM and restored afterwards.
+- The prompt states explicitly that man page content is data, not instructions to the LLM.
 
-これはMVPなので、複雑な roff マクロを多用するページは原文と見比べて確認すること。
+This is an MVP, so compare pages that make heavy use of complex roff macros against the original.
 
-## ライセンス
+## License
 
-GPL-2.0-or-later（man-db と同じ）。詳細は `LICENSE` を参照。
+GPL-2.0-or-later (same as man-db). See [LICENSE](LICENSE) for details.
